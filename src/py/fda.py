@@ -1,5 +1,5 @@
 #	CS669 - Assignment 4 (Group-2) 
-#	Last edit: 19/11/17
+#	Last edit: 20/11/17
 #	About: 
 #		This program is a Bayes Classifier using GMM over reduced-dimensional representation of data usinf FDA.
 
@@ -13,15 +13,21 @@ import time
 dimension=2									#	Dimension of data vectors.
 classes=[]									#	Contains data of the class.
 transformedClasses=[]						#	Contains training data with reduced dimensions.
-testTransformedClasses=[]					#	Contains test data with reduced dimensions.
 classesName=[]								#	Names of classes.
 testClasses=[]								#	Contains test data.
-totalData=[]								#	Concatenated training data.
-covarianceMatrix=[]							#	Of the training data as a whole for Eigen Analysis.
-clusterCovarianceMatrices=[]				#	Stores covariance matrices of clusters during GMM.
-clusters=[]									#	Stores data in clusters for all classes.
-clusterMeans=[]								#	Stores cluster means for all classes.				
-clusterPi=[]								#	Stores cluster mixing coefficients for GMM.
+means=[]									#	Means of all classes
+scatterWithin=[]							#	Within-class scatter matrix
+scatterBetween=[]							#	Between-class scatter matrix
+scatterMatrices=[]							#	Scatter Matrices of all classes
+pairwiseEigen=[]							#	EigenValue-EigenVector pair for pairs of classes.
+clusterCovarianceMatrices=[]				#	Stores covariance matrices of clusters during GMM, temporarily.
+clusters=[]									#	Stores data in clusters for all classes, temporarily.
+clusterMeans=[]								#	Stores cluster means for all classes, temporarily.				
+clusterPi=[]								#	Stores cluster mixing coefficients for GMM, temporarily.
+bigClusters=[]								#	Stores data in clusters for all classes.
+bigClusterMeans=[]							#	Stores cluster means for all classes.
+bigClusterCovarianceMatrices=[]				#	Stores covariance matrices of clusters during GMM.
+bigClusterPi=[]								#	Stores cluster mixing coefficients for GMM.
 randSmall=[1e-310, 7.8e-309, 5.6e-308, 9.2e-312, 3.9e-310, 2.7e-307, 8.7e-309]		# Random small values for error handling.
 randLarge=[3.4e310, 6.8e309, 7.6e308, 9.3e312, 9.9e310, 4.7e307, 8.8e309]			# Random large values for errro handling.
 
@@ -34,42 +40,41 @@ def dist(x,y,dimensionPassed):
 	return (distance)
 
 #	Covariance term for given indices.
-def covarianceTerm(i,j):
+def scatterTerm(ind,i,j):
 	Sum=0
-	for k in range(len(totalData)):
-		x=totalData[k]
-		Sum+=(x[i]-Mean[i])*(x[j]-Mean[j])
-	Sum/=len(totalData)
+	for k in range(len(classes[ind])):
+		x=classes[ind][k]
+		Sum+=(x[i]-means[ind][i])*(x[j]-means[ind][j])
 	return Sum
 
 #	Returns the covaricance between dimension 'i' and 'j', of 'cluster' indexed cluster in class with index 'ind'.
-def covarianceTermCluster(ind,cluster,i,j):
+def covarianceTermCluster(classInd,cluster,i,j):
 	Sum=0
-	for k in range(len(clusters[ind][cluster])):
-		x=clusters[ind][cluster][k]
-		Sum+=(x[i]-clusterMeans[ind][cluster][i])*(x[j]-clusterMeans[ind][cluster][j])
-	Sum/=len(clusters[ind][cluster])
+	for k in range(len(clusters[classInd][cluster])):
+		x=clusters[classInd][cluster][k]
+		Sum+=(x[i]-clusterMeans[classInd][cluster][i])*(x[j]-clusterMeans[classInd][cluster][j])
+	Sum/=len(clusters[classInd][cluster])
 	return Sum
 
 #	Calculates the covariance matrix for all classes.
-def calcCovarianceMat():
-	global covarianceMatrix
-	covarianceMatrix=[[0 for x in range(dimension)] for y in range(dimension)]
+def calcScatterMat(ind):
+	tempScatterMatrix=[[0 for x in range(dimension)] for y in range(dimension)]
 	for j in range(dimension):
 		for k in range(dimension):
 			if j<=k:
-				covarianceMatrix[j][k]=covarianceTerm(j,k)
-				covarianceMatrix[k][j]=covarianceMatrix[j][k]
+				tempScatterMatrix[j][k]=scatterTerm(ind,j,k)
+				tempScatterMatrix[k][j]=tempScatterMatrix[j][k]
+	scatterMatrices.append(np.array(tempScatterMatrix))
 
 #	Calculates covariance matrices of all clusters in class with index 'ind'.
-def calcCovarianceMatClusters(ind,dimensionPassed):
+def calcCovarianceMatClusters(classInd,dimensionPassed):
 	tempClusterCovarianceMatrices=[]
-	for i in range(len(clusters[ind])):
+	for i in range(len(clusters[classInd])):
 		tempCovarianceMat=[[0 for k in range(dimensionPassed)] for j in range(dimensionPassed)]
 		for j in range(dimensionPassed):
 			for k in range(dimensionPassed):
 				if j<=k:
-					tempCovarianceMat[j][k]=covarianceTermCluster(ind,i,j,k)
+					tempCovarianceMat[j][k]=covarianceTermCluster(classInd,i,j,k)
 					tempCovarianceMat[k][j]=tempCovarianceMat[j][k]
 		tempClusterCovarianceMatrices.append(tempCovarianceMat)
 	clusterCovarianceMatrices.append(tempClusterCovarianceMatrices)	
@@ -108,17 +113,21 @@ def likelihood(x,uK,sigmaK,dimensionPassed):
 	return value
 
 #	Returns in the index of class with maximum likelihood of having the sample point 'x'.
-def classifyLikelihood(x,K,dimensionPassed):
-	val=[0 for i in range(len(clusterMeans))]
-	for i in range(len(clusterMeans)):
+def classifyLikelihood(ind,x,K,dimensionPassed):
+	val=[0 for i in range(len(bigClusterMeans[ind]))]
+	for i in range(len(bigClusterMeans[ind])):
 		for k in range(K):
-			val[i]+=clusterPi[i][k]*likelihood(x,clusterMeans[i][k],clusterCovarianceMatrices[i][k],dimensionPassed)
+			val[i]+=bigClusterPi[ind][i][k]*likelihood(x,bigClusterMeans[ind][i][k],bigClusterCovarianceMatrices[ind][i][k],dimensionPassed)
 	return np.argmax(val)
 
 #	K-means clustering for initiating GMM formation.
-def kMeansClusteringandGMM(ind,K,dimensionPassed):
+def kMeansClusteringandGMM(ind,classInd,K,dimensionPassed):
 
-	tempClass=np.array(transformedClasses[ind])
+	tempClass=[[0 for i in range(dimensionPassed)] for j in range(len(transformedClasses[ind][classInd]))] 
+	for i in range(len(transformedClasses[ind][classInd])):
+		for j in range(dimensionPassed):
+			tempClass[i][j]=transformedClasses[ind][classInd][i][j]
+	tempClass=np.array(tempClass)
 	N=len(tempClass)
 
 	#	Assigning random means to the K clusters...
@@ -177,7 +186,7 @@ def kMeansClusteringandGMM(ind,K,dimensionPassed):
 	#	GMM.
 
 	#	Calculating Covariance Matrices for all clusters...
-	calcCovarianceMatClusters(ind,dimensionPassed)
+	calcCovarianceMatClusters(classInd,dimensionPassed)
 	
 	#	Calculating mixing coefficients for all clusters...
 	tempClusterPi=[]
@@ -188,7 +197,7 @@ def kMeansClusteringandGMM(ind,K,dimensionPassed):
 
 	#	Using these initial calculated values for the EM algorithm.
 	
-	tempClusterCovarianceMatrices=clusterCovarianceMatrices[ind]
+	tempClusterCovarianceMatrices=clusterCovarianceMatrices[classInd]
 	energy=np.inf
 	tempL=0
 	iterations=1
@@ -243,10 +252,7 @@ def kMeansClusteringandGMM(ind,K,dimensionPassed):
 				for i in range(dimensionPassed):
 					tempMatrix[i][i]+=0.5
 				determinant=np.linalg.det(tempMatrix)
-			if tempL==0:
-				tempClusterCovarianceMatrices.append(tempMatrix)
-			else:
-				tempClusterCovarianceMatrices[k]=tempMatrix
+			tempClusterCovarianceMatrices[k]=tempMatrix
 
 		#	Refining mixing coefficients.
 		for k in range(K):
@@ -265,12 +271,26 @@ def kMeansClusteringandGMM(ind,K,dimensionPassed):
 			iterations+=1
 
 	del tempGammaSum,tempGammaZ,tempLikelihoodTerms,tempDenom
-	clusterMeans[ind]=tempClusterMean
-	clusterCovarianceMatrices[ind]=tempClusterCovarianceMatrices
+	clusterMeans[classInd]=tempClusterMean
+	clusterCovarianceMatrices[classInd]=tempClusterCovarianceMatrices
 	clusterPi.append(tempClusterPi)
 
+def check(x,dimensionPassed,K,classInd1,classInd2,ind):
+	global clusters,clusterMeans,clusterCovarianceMatrices,clusterPi
+
+	newVectorTest=[]
+	for k in range(dimensionPassed):
+		newVectorTest.append(np.inner(np.array(x),np.array(pairwiseEigen[ind][k][1])))
+	
+	ret=classifyLikelihood(ind,newVectorTest,K,dimensionPassed)
+	if ret==0:
+		ret=classInd1
+	else:
+		ret=classInd2
+	return ret
+
 #	Program starts here...
-print ("\nThis program is a Bayes Classifier using GMM over reduced-dimensional representation of data using FDA.\n")
+print ("\nThis program is a Bayes Classifier using GMM over reduced-dimensional representation of data using FDA.")
 
 #	Parsing Input... 
 choice= raw_input("\nDo you want to use your own directory for features training/test input and output or default (o/d): ")
@@ -334,78 +354,170 @@ for i in range(len(classesName)):
 			testClasses.append(tempClassData)
 			file.close()
 
-
 start_time=time.clock()
 
-#	Clubbing all data to form a single set of data.
-for ci in range(len(classes)):
-	for x in range(len(classes[ci])):
-		totalData.append(classes[ci][x])
-
 #	Finding the mean vector of total data.
-Mean=[0 for i in range(dimension)]
-for x in range(len(totalData)):
+for ci in range(len(classes)):
+	tempMean=[0 for i in range(dimension)]
+	for x in range(len(classes[ci])):
+		for d in range(dimension):
+			tempMean[d]+=classes[ci][x][d]
 	for d in range(dimension):
-		Mean[d]+=totalData[x][d]
-for d in range(dimension):
-		Mean[d]/=len(totalData)
+		tempMean[d]/=len(classes[ci])
+	means.append(np.array(tempMean))
 
-#	Finding the covariance matrix of total data.
-calcCovarianceMat()
+#	Finding the between-class scatter matrix for all pair of classes.
+for i in range(len(classes)):
+	for j in range(i+1,len(classes)):
+		tempMat=np.outer((means[i]-means[j]),(means[i]-means[j]))
+		for x in range(dimension):
+			for y in range(dimension):
+				tempMat[x][y]*=len(classes[i])
+		scatterBetween.append(tempMat)
 
-#	Finding EigenValues and EigenVectors for the covariance matrix.
-eigenValues,eigenVectors=np.linalg.eigh(covarianceMatrix)
+#	Finding the scatter matrices for all classes.
+for i in range(len(classes)):
+	calcScatterMat(i)
 
-# Sort the (eigenValues, eigenVectors) tuples from high to low
-eigPairs=[(np.abs(eigenValues[i]),eigenVectors[:,i]) for i in range(len(eigenValues))]
-eigPairs.sort(key=lambda x: x[0], reverse=True)
-eigenValueVectorTuples.append(eigPairs)
+#	Finding the within-class scatter matrix for corresponding class-pairs.
+for i in range(len(classes)):
+	for j in range(i+1,len(classes)):
+		scatterWithin.append(scatterMatrices[i]+scatterMatrices[j])
 
-#	PCA for l(reduced dimensions) ranging from 1 to d-1
+for ci in range(len(scatterBetween)):
+	determinant=np.linalg.det(scatterWithin[ci])
+	while determinant==0:
+		for i in range(dimension):
+			scatterWithin[ci][i][i]+=0.5
+		determinant=np.linalg.det(scatterWithin[ci])
+	determinant=np.linalg.det(scatterBetween[ci])
+	while determinant==0:
+		for i in range(dimension):
+			scatterBetween[ci][i][i]+=0.5
+		determinant=np.linalg.det(scatterBetween[ci])
+	
+	transformationMatrix=np.array((np.asmatrix(scatterWithin[ci]).I)*(np.asmatrix(scatterBetween[ci])))
+
+	#	Finding EigenValues and EigenVectors for the transformation Matrix.
+	eigenValues,eigenVectors=np.linalg.eigh(transformationMatrix)
+
+	# Sort the (eigenValues, eigenVectors) tuples from high to low
+	eigPairs=[(np.abs(eigenValues[i]),eigenVectors[:,i]) for i in range(len(eigenValues))]
+	eigPairs.sort(key=lambda x: x[0], reverse=True)
+	pairwiseEigen.append(eigPairs)
+	classInd1=0
+	classInd2=1
+	if ci==0:
+		classInd1=0
+		classInd2=1
+	elif ci==1:
+		classInd1=0
+		classInd2=2
+	else:
+		classInd1=1
+		classInd2=2
+
+	tempTransformedClasses=[]
+	transformedData=[]
+	for i in range(len(classes[classInd1])):
+		newVector=[]
+		for k in range(dimension):
+			newVector.append(np.inner(np.array(classes[classInd1][i]),np.array(pairwiseEigen[ci][k][1])))
+		transformedData.append(newVector)
+	tempTransformedClasses.append(transformedData)
+	transformedData=[]
+	for i in range(len(classes[classInd2])):
+		newVector=[]
+		for k in range(dimension):
+			newVector.append(np.inner(np.array(classes[classInd2][i]),np.array(pairwiseEigen[ci][k][1])))
+		transformedData.append(newVector)
+	tempTransformedClasses.append(transformedData)
+	transformedClasses.append(tempTransformedClasses)
+
+
 for l in range(64,65):
-	transformedClasses=[]
-	testTransformedClasses=[]
-
-	for ci in range(len(classes)):
-		newLDimensions=[]
-		for k in range(l):
-			newLDimensions.append(eigPairs[k][1])
+	for k in range(1,6):
 		
-		transformedData=[]
-		for i in range(len(classes[ci])):
-			newVector=[]
-			for k in range(l):
-				newVector.append(np.inner(np.array(classes[ci][i]),np.array(newLDimensions[k])))
-			transformedData.append(newVector)
-		
-		testTransformedData=[]
-		for i in range(len(testClasses[ci])):
-			newVectorTest=[]
-			for k in range(l):
-				newVectorTest.append(np.inner(np.array(testClasses[ci][i]),np.array(newLDimensions[k])))
-			testTransformedData.append(newVectorTest)
-		
-		transformedClasses.append(transformedData)
-		testTransformedClasses.append(testTransformedData)
-		del newLDimensions
-		del transformedData
-		del testTransformedData
+		if l==1 and k==1:
+			file=open(os.path.join(directO,"train_l_1_"+str(0)+"_"+str(1)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[0][i])):
+					file.write(str(transformedClasses[0][i][j][0])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_1_"+str(0)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[1][i])):
+					file.write(str(transformedClasses[1][i][j][0])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_1_"+str(1)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[2][i])):
+					file.write(str(transformedClasses[2][i][j][0])+"\n")
+			file.close()
+		elif l==2 and k==1:
+			file=open(os.path.join(directO,"train_l_2_"+str(0)+"_"+str(1)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[0][i])):
+					file.write(str(transformedClasses[0][i][j][0])+" "+str(transformedClasses[0][i][j][1])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_2_"+str(0)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[1][i])):
+					file.write(str(transformedClasses[1][i][j][0])+" "+str(transformedClasses[1][i][j][1])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_2_"+str(1)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[2][i])):
+					file.write(str(transformedClasses[2][i][j][0])+" "+str(transformedClasses[2][i][j][1])+"\n")
+			file.close()
+		elif l==3 and k==1:
+			file=open(os.path.join(directO,"train_l_3_"+str(0)+"_"+str(1)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[0][i])):
+					file.write(str(transformedClasses[0][i][j][0])+" "+str(transformedClasses[0][i][j][1])+" "+str(transformedClasses[0][i][j][2])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_3_"+str(0)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[1][i])):
+					file.write(str(transformedClasses[1][i][j][0])+" "+str(transformedClasses[1][i][j][1])+" "+str(transformedClasses[1][i][j][2])+"\n")
+			file.close()
+			file=open(os.path.join(directO,"train_l_3_"+str(1)+"_"+str(2)+".txt"),"w")
+			for i in range(2):
+				for j in range(len(transformedClasses[2][i])):
+					file.write(str(transformedClasses[2][i][j][0])+" "+str(transformedClasses[2][i][j][1])+" "+str(transformedClasses[2][i][j][2])+"\n")
+			file.close()
 
-	for k in range(4):
-		clusters=[]
-		clusterMeans=[]
-		clusterCovarianceMatrices=[]
-		clusterPi=[]
+		bigClusters=[]
+		bigClusterMeans=[]
+		bigClusterCovarianceMatrices=[]
+		bigClusterPi=[]
 
-		for ci in range(len(classes)):
-			kMeansClusteringandGMM(ci,2**k,l)
-		confusionMatrix=[[0 for i in range(len(transformedClasses))] for j in range(len(transformedClasses))]
-		for x in range(len(testTransformedClasses)):
-			for y in range(len(testTransformedClasses[x])):
-				ret=classifyLikelihood(testTransformedClasses[x][y],2**k,l)
-				confusionMatrix[ret][x]+=1
+		for ind in range(3):
+			clusters=[]
+			clusterMeans=[]
+			clusterCovarianceMatrices=[]
+			clusterPi=[]
+			for ci in range(len(transformedClasses[ind])):
+				kMeansClusteringandGMM(ind,ci,k,l)
+			bigClusters.append(clusters)
+			bigClusterMeans.append(clusterMeans)
+			bigClusterCovarianceMatrices.append(clusterCovarianceMatrices)
+			bigClusterPi.append(clusterPi)
+
+
+		confusionMatrix=[[0 for i in range(len(classes))] for j in range(len(classes))]
+		for i in range(len(testClasses)):
+			for j in range(len(testClasses[i])):
+				x=testClasses[i][j]
+				ret=check(x,l,k,0,1,0)
+				if ret==0:
+					ret=check(x,l,k,0,2,1)
+				else:
+					ret=check(x,l,k,1,2,2)
+				print ret,i
+				confusionMatrix[ret][i]+=1
+
 		print confusionMatrix
-
 		colors=['r','b','g']
 		f=[]
 
@@ -434,9 +546,9 @@ for l in range(64,65):
 			confusionMatClass.append(tempConfusionMatClass)
 		
 		print "Data testing complete. Writing results in files for future reference."
-		filer=open(os.path.join(directO,"results_"+str(l)+"_"+str(k+1)+".txt"),"w")
-		filev=open(os.path.join(directO,"values_"+str(k+1)+".txt"),"a")
-		filet=open(os.path.join(directO,"times_"+str(k+1)+".txt"),"a")
+		filer=open(os.path.join(directO,"results_"+str(l)+"_"+str(k)+".txt"),"w")
+		filev=open(os.path.join(directO,"values_"+str(k)+".txt"),"a")
+		filet=open(os.path.join(directO,"times_"+str(k)+".txt"),"a")
 
 		filer.write("The Confusion Matrix of all classes together is: \n")
 		for i in range(len(classes)):
