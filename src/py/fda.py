@@ -435,7 +435,7 @@ for ci in range(len(scatterBetween)):
 	transformedClasses.append(tempTransformedClasses)
 
 
-for l in range(2,3):
+for l in range(1,dimension+1):
 	for k in range(1,6):
 		
 		if l==1 and k==1:
@@ -460,27 +460,15 @@ for l in range(2,3):
 				for j in range(len(transformedClasses[0][i])):
 					file.write(str(transformedClasses[0][i][j][0])+" "+str(transformedClasses[0][i][j][1])+"\n")
 			file.close()
-			file=open(os.path.join(directO,"train_l_2_eigen_"+str(0)+"_"+str(1)+".txt"),"w")
-			file.write(str(pairwiseEigen[0][0][1][0])+" "+str(pairwiseEigen[0][0][1][1])+"\n")
-			file.write(str(pairwiseEigen[0][1][1][0])+" "+str(pairwiseEigen[0][1][1][1])+"\n")
-			file.close()
 			file=open(os.path.join(directO,"train_l_2_"+str(0)+"_"+str(2)+".txt"),"w")
 			for i in range(2):
 				for j in range(len(transformedClasses[1][i])):
 					file.write(str(transformedClasses[1][i][j][0])+" "+str(transformedClasses[1][i][j][1])+"\n")
 			file.close()
-			file=open(os.path.join(directO,"train_l_2_eigen_"+str(0)+"_"+str(2)+".txt"),"w")
-			file.write(str(pairwiseEigen[1][0][1][0])+" "+str(pairwiseEigen[1][0][1][1])+"\n")
-			file.write(str(pairwiseEigen[1][1][1][0])+" "+str(pairwiseEigen[1][1][1][1])+"\n")
-			file.close()
 			file=open(os.path.join(directO,"train_l_2_"+str(1)+"_"+str(2)+".txt"),"w")
 			for i in range(2):
 				for j in range(len(transformedClasses[2][i])):
 					file.write(str(transformedClasses[2][i][j][0])+" "+str(transformedClasses[2][i][j][1])+"\n")
-			file.close()
-			file=open(os.path.join(directO,"train_l_2_eigen_"+str(1)+"_"+str(2)+".txt"),"w")
-			file.write(str(pairwiseEigen[2][0][1][0])+" "+str(pairwiseEigen[2][0][1][1])+"\n")
-			file.write(str(pairwiseEigen[2][1][1][0])+" "+str(pairwiseEigen[2][1][1][1])+"\n")
 			file.close()
 		elif l==3 and k==1:
 			file=open(os.path.join(directO,"train_l_3_"+str(0)+"_"+str(1)+".txt"),"w")
