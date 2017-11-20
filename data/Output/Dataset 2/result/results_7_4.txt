@@ -1,0 +1,42 @@
+The Confusion Matrix of all classes together is: 
+5 1 1 
+11 22 18 
+34 27 31 
+
+The Confusion Matrices for different classes are: 
+
+Class 1: 
+5 2 
+45 98 
+
+Class 2: 
+22 29 
+28 71 
+
+Class 3: 
+31 61 
+19 39 
+
+Different quantitative values are listed below.
+
+Classification Accuracy for class 1 is 0.686666666667
+Precision for class 1 is 0.714285714286
+Recall for class 1 is 0.1
+F-measure for class 1 is 0.175438596491
+
+Classification Accuracy for class 2 is 0.62
+Precision for class 2 is 0.43137254902
+Recall for class 2 is 0.44
+F-measure for class 2 is 0.435643564356
+
+Classification Accuracy for class 3 is 0.466666666667
+Precision for class 3 is 0.336956521739
+Recall for class 3 is 0.62
+F-measure for class 3 is 0.43661971831
+
+Average classification Accuracy is 0.591111111111
+Average precision is 0.494204928348
+Average recall is 0.386666666667
+Average F-measure is 0.349233959719
+
+**End of results**
